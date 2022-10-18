@@ -1,0 +1,135 @@
+import numpy as np
+import cv2
+import pandas as pd
+
+
+
+def main():
+    # img = cv2.imread('flask1.jpg')                              # import image and colours file
+    vc = cv2.VideoCapture(0)
+
+    if vc.isOpened(): # try to get the first frame
+        rval, frame = vc.read()
+    else:
+        rval = False
+
+    while rval:
+        cv2.imshow("preview", frame)
+        rval, frame = vc.read()
+        img = frame
+
+        key = cv2.waitKey(20)
+        if key == 27: # exit on ESC
+            break
+    index=["color","color_name","hex","R","G","B"]
+    csv = pd.read_csv('colors.csv', names=index, header=None)
+
+
+    img_scaled = cv2.resize(img, (0,0), fx = 0.5, fy = 0.5)     # scale image to reasonable size and get width/height
+    h, w = img_scaled.shape[0:2]
+
+    img_masked = cropImage(img_scaled, (int(w/3), int((h/2)+40)), (int(w*2/3), int(h-58)))       # crop to region of interest
+    
+    colour_bgr, var = getPixelValues(img_masked)     # calculate mean bgr value of pixels
+    
+    print('colour rgb values:')
+    print(colour_bgr)
+    print('confidence:')
+    print(var)
+
+    colour_name = getColourName(colour_bgr, csv)    # find corresponding colour name
+#     print(colour_name)
+
+    while True:
+        cv2.imshow('hype', img_scaled)
+        cv2.imshow('frame', img_masked)
+
+        key = cv2.waitKey(20)
+        if key == 27: # exit on ESC
+           break
+
+def maskImage(img, c1, c2):
+    mask = np.zeros(img.shape[:2], dtype = "uint8")
+    cv2.rectangle(mask, c1, c2, 255, -1)
+
+    maskedimg = cv2.bitwise_and(img, img, mask = mask)
+
+    return maskedimg
+
+def getColourName(bgr, csv):
+    B = bgr[0]
+    G = bgr[1]
+    R = bgr[2]
+    minimum = 10000
+    for i in range(len(csv)):
+        d = abs(R- int(csv.loc[i,"R"])) + abs(G- int(csv.loc[i,"G"]))+ abs(B- int(csv.loc[i,"B"]))
+        if(d<=minimum):
+            minimum = d
+            cname = csv.loc[i,"color_name"]
+    return cname
+
+def getPixelValues(img_cropped):
+    median = np.zeros((img_cropped.shape[0], img_cropped.shape[2]))
+    var = np.zeros((img_cropped.shape[0], img_cropped.shape[2]))
+   
+    for i in range(img_cropped.shape[0]):
+        median[i] = np.median(img_cropped[i], axis = 0)
+        var[i] = np.var(img_cropped[i], axis = 0)
+
+    colour_val = np.median(median, axis = 0)
+    variance = np.mean(var, axis = 0)
+    var_mean = np.mean(variance)
+    if var_mean>2000:
+        confidence = 0
+    else:
+        confidence = (-1/20)*var_mean+100
+
+    return colour_val, confidence
+
+# def getShape():
+#     optional do later detect flask
+
+def cropImage(img, c1, c2):
+    roi = img[c1[1]:c2[1], c1[0]:c2[0]]
+    
+    return roi
+
+
+
+
+# cv2.namedWindow("preview")
+# vc = cv2.VideoCapture(0)
+
+# if vc.isOpened(): # try to get the first frame
+#     rval, frame = vc.read()
+# else:
+#     rval = False
+
+# while rval:
+#     cv2.imshow("preview", frame)
+#     rval, frame = vc.read()
+#     img = frame
+
+#     key = cv2.waitKey(20)
+#     if key == 27: # exit on ESC
+#         break
+
+# vc.release()
+# cv2.destroyWindow("preview")
+
+# def process(img):
+#     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#     #_, thresh = cv2.threshold(img_gray, 200, 255, cv2.THRESH_BINARY)
+#     _, thresh = cv2.threshold(img_gray, 150, 255, cv2.THRESH_BINARY)
+#     #img_blur = cv2.GaussianBlur(thresh, (5, 5), 2)
+#     #img_canny = cv2.Canny(img_blur, 0, 0)
+#     #return img_canny
+#     return thresh
+
+# def get_contours(img, thresh):
+#     contours, _ = cv2.findContours(process(img), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+#     r1, r2 = sorted(contours, key=cv2.contourArea)[-3:-1]
+#     x, y, w, h = cv2.boundingRect(np.r_[r1, r2])
+#     cv2.rectangle(img, (x, y), (x + w, y + h), (0, 0, 255), 2)
+
+main()
